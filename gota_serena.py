@@ -15,9 +15,9 @@ bot = commands.Bot(command_prefix=prefix, intents=intents)
 @bot.event
 async def on_ready():
     # await bot.load_extension('./cogs/music_cog.py')
-    for filename in os.listdir('./cogs'):
-        if filename.endswith('.py'):
-            await bot.load_extension(f'cogs.{filename[:-3]}')
+    # for filename in os.listdir('./cogs'):
+    #     if filename.endswith('.py'):
+    #         await bot.load_extension(f'cogs.{filename[:-3]}')
     pass
 
 
