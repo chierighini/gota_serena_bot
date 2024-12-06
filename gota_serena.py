@@ -1,7 +1,9 @@
 import vlc
 import discord
 import yt_dlp
+import asyncio
 import os
+import json
 import subprocess
 from discord.ext import commands
 intents = discord.Intents.default()
@@ -10,6 +12,7 @@ intents.message_content = True
 prefix = '-'
 
 bot = commands.Bot(command_prefix=prefix, intents=intents)
+songs = asyncio.Queue()
 
 # runs when bot is ready
 @bot.event
@@ -21,7 +24,6 @@ async def on_ready():
     pass
 
 
-#plays music, but gets cut off by youtube (stream issue?)
 @bot.command()
 async def play(ctx, url):
     voiceChannel = ctx.message.author.voice.channel
@@ -35,59 +37,48 @@ async def play(ctx, url):
     ydl_opts = {'format': 'bestaudio'}
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         song_info = ydl.extract_info(url, download=True)
-    # with open("./queue_file","a") as queue_file:
-    #     queue_file.write(song_info["title"])
     ffmpeg_options = {'options': '-vn'}
     pwd = repr(subprocess.check_output(["pwd"]))[1:-1]
     pwd = pwd[1:-2]
+    
 
-    title = song_info["title"]
+    song_id = song_info["id"]
+
     for fname in os.listdir("./"):
-        if title in fname:
-            path = fname
+        if song_id in fname:
+            await songs.put(fname)
+            
+    try:
+        if not ctx.voice_client.is_playing():
+            ctx.voice_client.play(discord.FFmpegPCMAudio(await songs.get(), **ffmpeg_options))
+    except discord.ClientException:
+        ctx.send("deu uma bosta aqui")
 
-    ctx.voice_client.play(discord.FFmpegPCMAudio(path, **ffmpeg_options))
+@bot.event
+async def audio_state(ctx):
+    ffmpeg_options = {'options': '-vn'}
+
+    while True:
+        if not ctx.voice_client.is_playing():
+            ctx.voice_client.play(discord.FFmpegPCMAudio(await songs.get(), **ffmpeg_options))
+        await asyncio.sleep(3)
+
+@bot.command()
+async def stop(ctx):
+    ctx.voice_client.stop()
+    # ctx.voice_client.server.disc
+    while not songs.empty():
+        songs.get_nowait()
+        songs.task_done()
+
+@bot.command()
+async def skip(ctx):
+    ffmpeg_options = {'options': '-vn'}
+
+    ctx.voice_client.stop()
+    ctx.voice_client.play(discord.FFmpegPCMAudio(await songs.get(), **ffmpeg_options))
 
 bot.run(os.environ.get("BOT_TOKEN"))
 
-
+# song_info["requested_downloads"][0]["filepath"]
 #pwd+"/"+song_info["title"]+".m4a"
-
-# async def streamx(ctx, url):
-#     voiceChannel = ctx.message.author.voice.channel #get Message Sender Channel. When you want it to join without a seperat function.
-#     await voiceChannel.connect() #same applies to this
-#     ffmpeg_options = {'options': '-vn'}
-#     ydl_opts = {'format': 'bestaudio'}
-#     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-#         song_info = ydl.extract_info(url, download=False)
-
-#     ctx.voice_client.play(discord.FFmpegPCMAudio(song_info["url"], **ffmpeg_options))    
-
-
-
-# def get_music_from_link(link):
-#     # URLS = ['https://www.youtube.com/watch?v=dQw4w9WgXcQ']
-
-#     ydl_opts = {
-#         'format': 'm4a/bestaudio/best',
-#         # ℹ️ See help(yt_dlp.postprocessor) for a list of available Postprocessors and their arguments
-#         'postprocessors': [{  # Extract audio using ffmpeg
-#             'key': 'FFmpegExtractAudio',
-#             'preferredcodec': 'm4a',
-#         }]
-#     }
-
-#     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-#         error_code = ydl.download(link)
-
-
-# def play_audio(stream):
-#     i = vlc.Instance()
-
-
-# # Instance = vlc.Instance()
-# player = Instance.media_player_new()
-# Media = Instance.media_new(playurl)
-# Media.get_mrl()
-# player.set_media(Media)
-# player.play()
